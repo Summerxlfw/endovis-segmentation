@@ -1,0 +1,29 @@
+# remotes
+origin	https://github.com/open-mmlab/mmsegmentation.git (fetch)
+origin	https://github.com/open-mmlab/mmsegmentation.git (push)
+
+# head
+b040e147adfa027bbc071b624bedf0ae84dfc922
+
+# status
+## main...origin/main
+ M mmseg/datasets/__init__.py
+ M mmseg/datasets/transforms/__init__.py
+ M mmseg/datasets/transforms/formatting.py
+ M mmseg/datasets/transforms/loading.py
+ M mmseg/models/decode_heads/__init__.py
+ M mmseg/models/segmentors/__init__.py
+?? configs/_base_/datasets/endovis2017_binary.py
+?? configs/_base_/datasets/endovis2017_parts.py
+?? configs/_base_/datasets/endovis2017_type.py
+?? configs/endovis/
+?? docs/enhanced_multitask_results.md
+?? evaluation/
+?? mmseg/datasets/endovis.py
+?? mmseg/datasets/endovis_multitask.py
+?? mmseg/models/decode_heads/fcn_lrsa_head.py
+?? mmseg/models/decode_heads/fcn_ppa_head.py
+?? mmseg/models/decode_heads/fcn_shsa_head.py
+?? mmseg/models/plugins/
+?? mmseg/models/segmentors/multitask_encoder_decoder.py
+?? train_final_all_folds.sh

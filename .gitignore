@@ -1,0 +1,97 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# PyTorch / Deep Learning
+*.pth
+*.pt
+*.ckpt
+*.pkl
+*.pickle
+work_dirs/
+checkpoints/
+
+# Data files (large datasets)
+data/
+*.h5
+*.hdf5
+*.npy
+*.npz
+
+# Logs
+logs/
+*.log
+*.out
+*.err
+
+# Results and outputs
+results/
+outputs/
+runs/
+wandb/
+
+# Archives (compressed files)
+archives/*.tar.gz
+archives/*.zip
+archives/*.tar
+archives/*.tgz
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# MMSegmentation specific
+mmsegmentation/work_dirs/
+mmsegmentation/.mim/
+mmsegmentation/data/
+
+# Keep important archive metadata
+!archives/*.txt
+!archives/*.tsv
+!archives/*.patch
+!archives/*.log

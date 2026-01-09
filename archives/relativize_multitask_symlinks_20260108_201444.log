@@ -1,0 +1,10 @@
+Symlink rewrite summary:
+  repo_root: /home/summer/endovis
+  multitask_dir: /home/summer/endovis/data/multitask
+  total_symlinks: 7200
+  changed: 7200
+  unchanged: 0
+  skipped_missing_target: 0
+  skipped_outside_repo: 0
+  dry_run: False
+

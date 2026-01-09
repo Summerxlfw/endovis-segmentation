@@ -1,0 +1,247 @@
+diff --git a/mmseg/datasets/__init__.py b/mmseg/datasets/__init__.py
+index f8ad750d..4d0512e8 100644
+--- a/mmseg/datasets/__init__.py
++++ b/mmseg/datasets/__init__.py
+@@ -3,6 +3,9 @@
+ from .ade import ADE20KDataset
+ from .basesegdataset import BaseCDDataset, BaseSegDataset
+ from .bdd100k import BDD100KDataset
++from .endovis import (EndoVis2017BinaryDataset, EndoVis2017PartsDataset,
++                      EndoVis2017TypeDataset)
++from .endovis_multitask import EndoVis2017MultiTaskDataset
+ from .chase_db1 import ChaseDB1Dataset
+ from .cityscapes import CityscapesDataset
+ from .coco_stuff import COCOStuffDataset
+@@ -34,7 +37,8 @@ from .transforms import (CLAHE, AdjustGamma, Albu, BioMedical3DPad,
+                          LoadAnnotations, LoadBiomedicalAnnotation,
+                          LoadBiomedicalData, LoadBiomedicalImageFromFile,
+                          LoadImageFromNDArray, LoadMultipleRSImageFromFile,
+-                         LoadSingleRSImageFromFile, PackSegInputs,
++                         LoadMultiTaskAnnotations, LoadSingleRSImageFromFile,
++                         PackMultiTaskSegInputs, PackSegInputs,
+                          PhotoMetricDistortion, RandomCrop, RandomCutOut,
+                          RandomMosaic, RandomRotate, RandomRotFlip, Rerange,
+                          ResizeShortestEdge, ResizeToMultiple, RGB2Gray,
+@@ -61,5 +65,8 @@ __all__ = [
+     'MapillaryDataset_v2', 'Albu', 'LEVIRCDDataset',
+     'LoadMultipleRSImageFromFile', 'LoadSingleRSImageFromFile',
+     'ConcatCDInput', 'BaseCDDataset', 'DSDLSegDataset', 'BDD100KDataset',
+-    'NYUDataset', 'HSIDrive20Dataset'
++    'NYUDataset', 'HSIDrive20Dataset', 'EndoVis2017BinaryDataset',
++    'EndoVis2017PartsDataset', 'EndoVis2017TypeDataset',
++    'EndoVis2017MultiTaskDataset', 'LoadMultiTaskAnnotations',
++    'PackMultiTaskSegInputs'
+ ]
+diff --git a/mmseg/datasets/transforms/__init__.py b/mmseg/datasets/transforms/__init__.py
+index 125f0708..1bf174a3 100644
+--- a/mmseg/datasets/transforms/__init__.py
++++ b/mmseg/datasets/transforms/__init__.py
+@@ -1,9 +1,10 @@
+ # Copyright (c) OpenMMLab. All rights reserved.
+-from .formatting import PackSegInputs
++from .formatting import PackMultiTaskSegInputs, PackSegInputs
+ from .loading import (LoadAnnotations, LoadBiomedicalAnnotation,
+                       LoadBiomedicalData, LoadBiomedicalImageFromFile,
+                       LoadDepthAnnotation, LoadImageFromNDArray,
+-                      LoadMultipleRSImageFromFile, LoadSingleRSImageFromFile)
++                      LoadMultipleRSImageFromFile, LoadMultiTaskAnnotations,
++                      LoadSingleRSImageFromFile)
+ # yapf: disable
+ from .transforms import (CLAHE, AdjustGamma, Albu, BioMedical3DPad,
+                          BioMedical3DRandomCrop, BioMedical3DRandomFlip,
+@@ -26,5 +27,5 @@ __all__ = [
+     'BioMedical3DRandomFlip', 'BioMedicalRandomGamma', 'BioMedical3DPad',
+     'RandomRotFlip', 'Albu', 'LoadSingleRSImageFromFile', 'ConcatCDInput',
+     'LoadMultipleRSImageFromFile', 'LoadDepthAnnotation', 'RandomDepthMix',
+-    'RandomFlip', 'Resize'
++    'RandomFlip', 'Resize', 'LoadMultiTaskAnnotations', 'PackMultiTaskSegInputs'
+ ]
+diff --git a/mmseg/datasets/transforms/formatting.py b/mmseg/datasets/transforms/formatting.py
+index bd250551..f7027ced 100644
+--- a/mmseg/datasets/transforms/formatting.py
++++ b/mmseg/datasets/transforms/formatting.py
+@@ -110,3 +110,81 @@ class PackSegInputs(BaseTransform):
+         repr_str = self.__class__.__name__
+         repr_str += f'(meta_keys={self.meta_keys})'
+         return repr_str
++
++
++@TRANSFORMS.register_module()
++class PackMultiTaskSegInputs(BaseTransform):
++    """Pack the inputs data for multi-task semantic segmentation.
++
++    Handles binary, parts, and type segmentation ground truth maps.
++
++    Args:
++        meta_keys (Sequence[str], optional): Meta keys to be packed.
++    """
++
++    def __init__(self,
++                 meta_keys=('img_path', 'ori_shape', 'img_shape', 'pad_shape',
++                            'scale_factor', 'flip', 'flip_direction',
++                            'reduce_zero_label')):
++        self.meta_keys = meta_keys
++
++    def transform(self, results: dict) -> dict:
++        """Method to pack the input data for multi-task learning.
++
++        Args:
++            results (dict): Result dict from the data pipeline.
++
++        Returns:
++            dict: Packed results with multi-task ground truth.
++        """
++        packed_results = dict()
++
++        # Pack image
++        if 'img' in results:
++            img = results['img']
++            if len(img.shape) < 3:
++                img = np.expand_dims(img, -1)
++            if not img.flags.c_contiguous:
++                img = to_tensor(np.ascontiguousarray(img.transpose(2, 0, 1)))
++            else:
++                img = img.transpose(2, 0, 1)
++                img = to_tensor(img).contiguous()
++            packed_results['inputs'] = img
++
++        data_sample = SegDataSample()
++
++        # Pack multi-task ground truth maps
++        for task in ['binary', 'parts', 'type']:
++            gt_key = f'gt_seg_map_{task}'
++            if gt_key in results:
++                gt_map = results[gt_key]
++                if len(gt_map.shape) == 2:
++                    data = to_tensor(gt_map[None, ...].astype(np.int64))
++                else:
++                    data = to_tensor(gt_map.astype(np.int64))
++                gt_data = PixelData(data=data)
++                setattr(data_sample, gt_key, gt_data)
++
++        # Also set gt_sem_seg to binary for compatibility
++        if 'gt_seg_map_binary' in results:
++            gt_map = results['gt_seg_map_binary']
++            if len(gt_map.shape) == 2:
++                data = to_tensor(gt_map[None, ...].astype(np.int64))
++            else:
++                data = to_tensor(gt_map.astype(np.int64))
++            data_sample.gt_sem_seg = PixelData(data=data)
++
++        # Pack meta info
++        img_meta = {}
++        for key in self.meta_keys:
++            if key in results:
++                img_meta[key] = results[key]
++        data_sample.set_metainfo(img_meta)
++
++        packed_results['data_samples'] = data_sample
++        return packed_results
++
++    def __repr__(self) -> str:
++        repr_str = self.__class__.__name__
++        repr_str += f'(meta_keys={self.meta_keys})'
++        return repr_str
+diff --git a/mmseg/datasets/transforms/loading.py b/mmseg/datasets/transforms/loading.py
+index c28937e5..84f15635 100644
+--- a/mmseg/datasets/transforms/loading.py
++++ b/mmseg/datasets/transforms/loading.py
+@@ -769,3 +769,58 @@ class LoadImageFromNpyFile(LoadImageFromFile):
+         results['img_shape'] = img.shape[:2]
+         results['ori_shape'] = img.shape[:2]
+         return results
++
++
++@TRANSFORMS.register_module()
++class LoadMultiTaskAnnotations(LoadAnnotations):
++    """Load multi-task annotations for EndoVis 2017 dataset.
++
++    Loads binary, parts, and type segmentation masks simultaneously.
++
++    Required Keys:
++    - seg_map_path_binary (str): Path to binary segmentation mask.
++    - seg_map_path_parts (str): Path to parts segmentation mask.
++    - seg_map_path_type (str): Path to type segmentation mask.
++
++    Added Keys:
++    - seg_fields (List): Updated list of segmentation field names.
++    - gt_seg_map_binary (np.uint8): Binary segmentation mask.
++    - gt_seg_map_parts (np.uint8): Parts segmentation mask.
++    - gt_seg_map_type (np.uint8): Type segmentation mask.
++    """
++
++    def _load_seg_map(self, results: dict) -> None:
++        """Load multi-task segmentation annotations.
++
++        Args:
++            results (dict): Result dict from dataset.
++        """
++        # Load binary mask
++        if 'seg_map_path_binary' in results:
++            img_bytes = fileio.get(
++                results['seg_map_path_binary'], backend_args=self.backend_args)
++            gt_binary = mmcv.imfrombytes(
++                img_bytes, flag='unchanged',
++                backend=self.imdecode_backend).squeeze().astype(np.uint8)
++            results['gt_seg_map_binary'] = gt_binary
++            results['seg_fields'].append('gt_seg_map_binary')
++
++        # Load parts mask
++        if 'seg_map_path_parts' in results:
++            img_bytes = fileio.get(
++                results['seg_map_path_parts'], backend_args=self.backend_args)
++            gt_parts = mmcv.imfrombytes(
++                img_bytes, flag='unchanged',
++                backend=self.imdecode_backend).squeeze().astype(np.uint8)
++            results['gt_seg_map_parts'] = gt_parts
++            results['seg_fields'].append('gt_seg_map_parts')
++
++        # Load type mask
++        if 'seg_map_path_type' in results:
++            img_bytes = fileio.get(
++                results['seg_map_path_type'], backend_args=self.backend_args)
++            gt_type = mmcv.imfrombytes(
++                img_bytes, flag='unchanged',
++                backend=self.imdecode_backend).squeeze().astype(np.uint8)
++            results['gt_seg_map_type'] = gt_type
++            results['seg_fields'].append('gt_seg_map_type')
+diff --git a/mmseg/models/decode_heads/__init__.py b/mmseg/models/decode_heads/__init__.py
+index 42297638..b72d9f63 100644
+--- a/mmseg/models/decode_heads/__init__.py
++++ b/mmseg/models/decode_heads/__init__.py
+@@ -11,6 +11,9 @@ from .dpt_head import DPTHead
+ from .ema_head import EMAHead
+ from .enc_head import EncHead
+ from .fcn_head import FCNHead
++from .fcn_shsa_head import FCNSHSAHead
++from .fcn_ppa_head import FCNPPAHead
++from .fcn_lrsa_head import FCNLRSAHead
+ from .fpn_head import FPNHead
+ from .gc_head import GCHead
+ from .ham_head import LightHamHead
+@@ -37,7 +40,8 @@ from .uper_head import UPerHead
+ from .vpd_depth_head import VPDDepthHead
+ 
+ __all__ = [
+-    'FCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
++    'FCNHead', 'FCNSHSAHead', 'FCNPPAHead', 'FCNLRSAHead',
++    'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
+     'UPerHead', 'DepthwiseSeparableASPPHead', 'ANNHead', 'DAHead', 'OCRHead',
+     'EncHead', 'DepthwiseSeparableFCNHead', 'FPNHead', 'EMAHead', 'DNLHead',
+     'PointHead', 'APCHead', 'DMHead', 'LRASPPHead', 'SETRUPHead',
+diff --git a/mmseg/models/segmentors/__init__.py b/mmseg/models/segmentors/__init__.py
+index 59b012f4..b3f97f8a 100644
+--- a/mmseg/models/segmentors/__init__.py
++++ b/mmseg/models/segmentors/__init__.py
+@@ -4,9 +4,10 @@ from .cascade_encoder_decoder import CascadeEncoderDecoder
+ from .depth_estimator import DepthEstimator
+ from .encoder_decoder import EncoderDecoder
+ from .multimodal_encoder_decoder import MultimodalEncoderDecoder
++from .multitask_encoder_decoder import MultiTaskEncoderDecoder
+ from .seg_tta import SegTTAModel
+ 
+ __all__ = [
+     'BaseSegmentor', 'EncoderDecoder', 'CascadeEncoderDecoder', 'SegTTAModel',
+-    'MultimodalEncoderDecoder', 'DepthEstimator'
++    'MultimodalEncoderDecoder', 'DepthEstimator', 'MultiTaskEncoderDecoder'
+ ]

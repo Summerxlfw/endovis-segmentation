@@ -1,0 +1,9 @@
+Timestamp: 2026-01-08T19:35:16+08:00
+Uname: Linux summer-3080 6.8.0-90-generic #91~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Thu Nov 20 15:20:45 UTC 2 x86_64 x86_64 x86_64 GNU/Linux
+PWD: /home/summer/endovis
+Python: Python 3.13.2
+
+# mmsegmentation
+Commit: b040e147adfa027bbc071b624bedf0ae84dfc922
+Branch: main
+
